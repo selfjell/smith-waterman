@@ -25,7 +25,9 @@ def read_score_matrix(path):
             #remove letter
             lst = lst[1:]
             scores.append([int(x) for x in lst if x != "" and x != "\n"])
-
+    assert len(indexes) == 24
+    assert len(scores) == 24
+    assert len(scores[0]) == 24
     return indexes, scores
 
 def format_and_print(a,b,x, a_start, b_start, a_end, b_end, width = 50):
@@ -75,53 +77,70 @@ seq1 = seq1.replace("\n","")
 seq2 = seq2_file.read()
 seq2 = seq2.replace("\n","")
 
+# add empty top corner
+#seq1 = " " + seq1
+#seq2 = " " + seq2
 
 indexes, scores = read_score_matrix(sys.argv[3])
 gap_opening = 11
 gap_extention = 1
+verbose = False
 #parse optional arguments
 for arg in sys.argv:
     if arg.startswith("go"):
         gap_opening = int(arg.split("=")[1])
     elif arg.startswith("ge"):
         gap_extention = int(arg.split("=")[1])
+    elif arg.startswith("v"):
+        verbose = True
 print(f'Penalty: Affine\nGap-opening penalty: {gap_opening}\nGap-extention penalty: {gap_extention}')
 print(f'Score matrix:{sys.argv[3]}')
 
 
 #smith-waterman
 #initialization
+#matrix = [[0 for j in range(len(seq2))] for i in range(len(seq1))]
 matrix = [[0 for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
-dir_matrix = [[[] for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
+dir_matrix = [["" for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
+E_dir = [["" for j in range(len(seq2))] for i in range(len(seq1))]
+F_dir = [["" for j in range(len(seq2))] for i in range(len(seq1))]
 #Aligning matrix
-G = [[0 for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
+#G = [[0 for j in range(len(seq2))] for i in range(len(seq1))]
 #Insertion matrix
-E = [[0 for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
+E = [[0 for j in range(len(seq2))] for i in range(len(seq1))]
 #Deletion matrix
-F = [[0 for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
-
-#Set first row and column of indel matrices
-for i in range(1,len(seq1)+1):
+F = [[0 for j in range(len(seq2))] for i in range(len(seq1))]
+"""
+#Set first row and column of the matrices POTENTIALLY REMOVE
+for i in range(1,len(seq1)):
     E[i][0] = -(2*gap_opening) - ((i+1)*gap_extention)
-    E[0][i] = float("-inf")
     F[i][0] = float("-inf")
+    matrix[i][0] = -gap_opening - (gap_extention*i)
+for i in range(1,len(seq2)):
+    E[0][i] = float("-inf")
     F[0][i] = -(2*gap_opening) - ((i+1)*gap_extention)
-
+    matrix[0][i] = -gap_opening - (gap_extention*i)
+"""
 #coordinates for the highest found score, backtrack from there
 highest_score = [0,0,0]
-for i in range(1,len(seq1)+1):
-    for j in range(1,len(seq2)+1):
-        G[i][j] = matrix[i-1][j-1] + scores[indexes[seq1[i-1]]][indexes[seq2[j-1]]]
-        F[i][j] = max(F[i-1][j]-gap_extention,matrix[i-1][j]-gap_opening-gap_extention)
-        E[i][j] = max(E[i][j-1]-gap_extention,matrix[i][j-1]-gap_opening-gap_extention)
+
+for i in range(1,len(seq1)):
+    for j in range(1,len(seq2)):
+        temp = matrix[i-1][j-1] + scores[indexes[seq1[i]]][indexes[seq2[j]]]
+        #I don't include gap-extention penalty for the initial gaps
+        F[i][j] = max(F[i-1][j]-gap_extention,matrix[i-1][j]-gap_opening)
+        E[i][j] = max(E[i][j-1]-gap_extention,matrix[i][j-1]-gap_opening) 
+        #Assuming no insertion right after deletions
+        F_dir[i][j] = "U" if F[i][j] == F[i-1][j]-gap_extention else "D"
+        E_dir[i][j] = "L" if E[i][j] == E[i][j-1]-gap_extention else "D"
+        matrix[i][j] = max(temp, F[i][j],E[i][j],0)
+        if matrix[i][j] == temp:
+            dir_matrix[i][j] = "D"        
+        elif matrix[i][j] == F[i][j]:
+            dir_matrix[i][j] = "U"           
+        elif matrix[i][j] == E[i][j]:
+            dir_matrix[i][j] = "L"
         
-        matrix[i][j] = max(G[i][j],F[i][j],E[i][j],0)
-        if matrix[i][j] == G[i][j]:
-            dir_matrix[i][j].append("D")
-        if matrix[i][j] == E[i][j]:
-            dir_matrix[i][j].append("L")
-        if matrix[i][j] == F[i][j]:
-            dir_matrix[i][j].append("U")
         #If it is zero do nothing, it's not part of our local alignment
         #Check if this is the highest score so far
         if matrix[i][j] > highest_score[2]:
@@ -130,50 +149,84 @@ for i in range(1,len(seq1)+1):
 #alignments to be printed
 align1, align2, alignX = '','',''
 i,j = highest_score[0],highest_score[1]
-
+if verbose:
+    print("Score matrix")
+    for row in matrix:
+        print(row)
+    print("Direction matrix")
+    for row in dir_matrix:
+        print(row)
 
 seq1_start = 1
 seq2_start = 1
 prev_i, prev_j = 0,0
+cur_dir = dir_matrix
 #find the alignment using direction matrix, stops when it hits a zero
 while i > 0 or j > 0:
-    if matrix[i][j] == 0:
+    print(f'I: {i} J: {j}')
+    if matrix[i][j] <= 0:
         #terminate
         seq2_start = prev_j
         seq1_start = prev_i
         break
-    dir = dir_matrix[i][j]
-    
+    dir = cur_dir[i][j]
+    print(f'Elements in list: {dir}')
     #Keep track of previous in case next one is a zero
     prev_i, prev_j = i, j
-    if "L" in dir:
+    if "L" == dir:
+        print(f'Deletion for residue:{seq2[j]}')
         align1 = "-" + align1
-        align2 = seq2[j-1] + align2
+        align2 = seq2[j] + align2
         alignX  = ' ' + alignX
-        j-=1
-    elif "D" in dir:
-        align1 = seq1[i-1] + align1
-        align2 = seq2[j-1] + align2
-        if seq1[i-1] == seq2[j-1]:
+        next_matrix = E_dir
+    elif "U" == dir:
+        print(f'Insertion for residue:{seq1[i]}')
+        align1  = seq1[i] + align1
+        align2 = "-" + align2
+        alignX = " " + alignX
+        next_matrix = F_dir
+    elif "D" == dir:
+        print(f'Alignment for:{seq1[i]} and {seq2[j]}')
+        align1 = seq1[i] + align1
+        align2 = seq2[j] + align2
+        if seq1[i] == seq2[j]:
             alignX = "|" + alignX
-        elif scores[indexes[seq1[i-1]]][indexes[seq2[j-1]]] > 0:
+        elif scores[indexes[seq1[i]]][indexes[seq2[j]]] > 0:
             alignX = "+" + alignX
         else:
             alignX =  " " + alignX
+        next_matrix = dir_matrix
+    if cur_dir == dir_matrix:
         i -= 1
         j -= 1
-    elif "U" in dir:
-        align1  = seq1[i-1] + align1
-        align2 = "-" + align2
-        alignX = " " + alignX
-        i -= 1
+    elif cur_dir == E_dir:
+        j-=1
+    elif cur_dir == F_dir:
+        i-=1
+    cur_dir = next_matrix
+    
+
 
 seq2_end = highest_score[1]
 seq1_end = highest_score[0]
 
 #printing results 
-print(f'Sequence A:\n{header_seq1}')
-print(f'Sequence B:\n{header_seq2}')
+print(f'Sequence A:\n{header_seq1}{seq1}')
+print(f'Sequence B:\n{header_seq2}{seq2}')
 print(f'Score: {highest_score[2]}\nAlignment:')
 format_and_print(align1,align2,alignX, seq1_start, seq2_start, seq1_end, seq2_end, width=50)
+
+actual_score = 0
+inGap = False
+for i in range(len(align1)):
+    if align1[i] == "-" or align2[i] == "-":
+        if inGap:
+            actual_score -= gap_extention
+        else:
+            actual_score = (actual_score) - gap_opening
+            inGap = True
+    else:
+        inGap = False
+        actual_score += scores[indexes[align1[i]]][indexes[align2[i]]]
+print(f'Actual score from alignment: {actual_score}')
 
