@@ -77,10 +77,6 @@ seq1 = seq1.replace("\n","")
 seq2 = seq2_file.read()
 seq2 = seq2.replace("\n","")
 
-# add empty top corner
-#seq1 = " " + seq1
-#seq2 = " " + seq2
-
 indexes, scores = read_score_matrix(sys.argv[3])
 gap_opening = 11
 gap_extention = 1
@@ -110,16 +106,6 @@ dir_matrix = [["" for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
 E_dir = [["" for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
 F_dir = [["" for j in range(len(seq2)+1)] for i in range(len(seq1)+1)]
 
-#Set first row and column of the matrices POTENTIALLY REMOVE
-for i in range(1,len(seq1)):
-    E[i][0] = -(2*gap_opening) - ((i+1)*gap_extention)
-    F[i][0] = float("-inf")
-    matrix[i][0] = -gap_opening - (gap_extention*i)
-for i in range(1,len(seq2)):
-    E[0][i] = float("-inf")
-    F[0][i] = -(2*gap_opening) - ((i+1)*gap_extention)
-    matrix[0][i] = -gap_opening - (gap_extention*i)
-
 #coordinates for the highest found score, backtrack from there
 highest_score = [0,0,0]
 
@@ -127,8 +113,8 @@ for i in range(1,len(seq1)+1):
     for j in range(1,len(seq2)+1):
         temp = matrix[i-1][j-1] + scores[indexes[seq1[i-1]]][indexes[seq2[j-1]]]
         #I don't include gap-extention penalty for the initial gaps
-        F[i][j] = max(F[i-1][j]-gap_extention,matrix[i-1][j]-gap_opening)
-        E[i][j] = max(E[i][j-1]-gap_extention,matrix[i][j-1]-gap_opening) 
+        F[i][j] = max(F[i-1][j]-gap_extention,matrix[i-1][j]-gap_opening,0)
+        E[i][j] = max(E[i][j-1]-gap_extention,matrix[i][j-1]-gap_opening,0) 
         #Assuming no insertion right after deletions
         if F[i][j] == F[i-1][j]-gap_extention:
             F_dir[i][j] = "U"
@@ -156,15 +142,13 @@ for i in range(1,len(seq1)+1):
 #alignments to be printed
 align1, align2, alignX = '','',''
 i,j = highest_score[0],highest_score[1]
-#trim arrays
 
+#trim arrays
 E = [row[1:] for row in E[1:]]
 E_dir = [row[1:] for row in E_dir[1:]]
 F = [row[1:] for row in F[1:]]
 F_dir = [row[1:] for row in F_dir[1:]]
 
-#matrix = [row[1:] for row in matrix[1:]]
-#dir_matrix = [row[1:] for row in dir_matrix[1:]]
 if verbose:
     print("Score matrix (main)")
     for row in matrix:
@@ -200,49 +184,45 @@ while i >= 0 or j >= 0:
         seq1_start = prev_i 
         break
     dir = cur_dir[i][j]
+    prev_i, prev_j = i, j
+    if cur_dir == dir_matrix:
+        i -= 1
+        j -= 1
+    elif cur_dir == E_dir:
+        j-=1
+    elif cur_dir == F_dir:
+        i-=1
     print(f'Elements in list: {dir}')
     #Keep track of previous in case next one is a zero
-    prev_i, prev_j = i, j
+    
     if "L" == dir:
-        print(f'Deletion for residue:{seq2[j-1]}')
+        print(f'Deletion for residue:{seq2[j]}')
         align1 = "-" + align1
-        align2 = seq2[j-1] + align2
+        align2 = seq2[j] + align2
         alignX  = ' ' + alignX
         next_matrix = E_dir
         score_matrix = E
-        #j-=1
     elif "U" == dir:
-        print(f'Insertion for residue:{seq1[i-1]}')
-        align1  = seq1[i-1] + align1
+        print(f'Insertion for residue:{seq1[i]}')
+        align1  = seq1[i] + align1
         align2 = "-" + align2
         alignX = " " + alignX
         next_matrix = F_dir
         score_matrix = F
-        #i-=1
     elif "D" == dir:
-        print(f'Alignment for: {seq1[i-1]} and {seq2[j-1]}')
-        align1 = seq1[i-1] + align1
-        align2 = seq2[j-1] + align2
-        if seq1[i-1] == seq2[j-1]:
+        print(f'Alignment for: {seq1[i]} and {seq2[j]}')
+        align1 = seq1[i] + align1
+        align2 = seq2[j] + align2
+        if seq1[i] == seq2[j]:
             alignX = "|" + alignX
-        elif scores[indexes[seq1[i-1]]][indexes[seq2[j-1]]] > 0:
+        elif scores[indexes[seq1[i]]][indexes[seq2[j]]] > 0:
             alignX = "+" + alignX
         else:
             alignX =  " " + alignX
         next_matrix = dir_matrix
         score_matrix = matrix
-        #i -= 1
-        #j -= 1
     
-    if cur_dir == dir_matrix:
-        if dir != "L":
-            i -= 1
-        if dir != "U":
-            j -= 1
-    elif cur_dir == E_dir:
-        j-=1
-    elif cur_dir == F_dir:
-        i-=1
+    
     cur_dir = next_matrix
     
 
