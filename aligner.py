@@ -108,19 +108,20 @@ highest_score = [0,0,0]
 
 for i in range(1,len(seq1)+1):
     for j in range(1,len(seq2)+1):
+        #Match/mismatch
         diag = matrix[i-1][j-1] + scores[indexes[seq1[i-1]]][indexes[seq2[j-1]]]
-        #I purposefully don't include gap-extention penalties for the initial gaps
-        F[i][j] = max(F[i-1][j]-gap_extention,matrix[i-1][j]-gap_opening,0)
-        E[i][j] = max(E[i][j-1]-gap_extention,matrix[i][j-1]-gap_opening,0) 
+        #Extending or opening a new gap
+        F[i][j] = max(F[i-1][j]-gap_extention,matrix[i-1][j]-gap_opening-gap_extention,0)
+        E[i][j] = max(E[i][j-1]-gap_extention,matrix[i][j-1]-gap_opening-gap_extention,0) 
         #Assuming no insertion right after deletions
         if F[i][j] == F[i-1][j]-gap_extention:
             F_dir[i][j] = "U"
-        elif F[i][j] == matrix[i-1][j]-gap_opening:
+        elif F[i][j] == matrix[i-1][j]-gap_opening-gap_extention:
             F_dir[i][j] = "D"
 
         if E[i][j] == E[i][j-1]-gap_extention:
             E_dir[i][j] = "L"  
-        elif E[i][j] == matrix[i][j-1]-gap_opening:
+        elif E[i][j] == matrix[i][j-1]-gap_opening-gap_extention:
             E_dir[i][j] = "D"
 
         matrix[i][j] = max(diag, F[i][j],E[i][j],0)
