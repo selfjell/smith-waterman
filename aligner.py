@@ -247,7 +247,7 @@ if debug:
             if inGap:
                 actual_score -= gap_extention
             else:
-                actual_score = (actual_score) - gap_opening
+                actual_score = (actual_score) - gap_opening - gap_extention
                 inGap = True
         else:
             inGap = False
