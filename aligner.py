@@ -45,8 +45,8 @@ def format_and_print(a,b,x, a_start, b_start, a_end, b_end, width = 50):
         #Calculate indices at the ends of the lines
         line_a_gaps = len([x for x in line_a if x == "-"])
         line_b_gaps = len([x for x in line_b if x == "-"])
-        line_a_end = a_start+(width-line_a_gaps)
-        line_b_end = b_start+(width-line_b_gaps)
+        line_a_end = a_start+(width-line_a_gaps-1)
+        line_b_end = b_start+(width-line_b_gaps-1)
         
         #Print the line with indexes
         print(f'A:\t{a_start}\t{line_a}\t{line_a_end}')
@@ -181,7 +181,7 @@ while i >= 0 or j >= 0:
     if score_matrix[i][j] <= 0:
         #terminate
         seq2_start = prev_j
-        seq1_start = prev_i 
+        seq1_start = prev_i
         break
     dir = cur_dir[i][j]
     prev_i, prev_j = i, j
